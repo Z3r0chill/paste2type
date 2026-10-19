@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Paste2Type test field</title>
+<style>
+body { max-width: 720px; margin: 60px auto; font: 17px system-ui; padding: 20px; }
+textarea { width: 100%; min-height: 220px; font: 18px monospace; padding: 12px; }
+input { width: 100%; padding: 12px; font: inherit; box-sizing: border-box; }
+#status { min-height: 2em; color: #555; }
+</style>
+<h1>Typing allowed. Pasting blocked.</h1>
+<p>Try pasting below: it should be blocked. Then focus the field, switch to Paste2Type,
+paste the sample into the app and click Start Typing.</p>
+<p>Sample: <code>Hello, café — 中文 👩🏽‍💻</code></p>
+<textarea aria-label="Destination field" placeholder="Click here before switching to Paste2Type"></textarea>
+<p id="status" role="status">Waiting for input.</p>
+<label>Second field (for testing focus changes)<input aria-label="Second field"></label>
+<script>
+for (const field of document.querySelectorAll('textarea, input')) {
+  field.addEventListener('paste', event => {
+    event.preventDefault();
+    document.querySelector('#status').textContent = 'Paste blocked.';
+  });
+  field.addEventListener('input', () => {
+    document.querySelector('#status').textContent = 'Typed input received (' + field.value.length + ' UTF-16 units).';
+  });
+}
+</script>
+</html>
