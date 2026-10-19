@@ -31,3 +31,16 @@ check(!TypingPlan.mayContinue(target: 42, frontmost: nil, escape: false, modifie
 check(!TypingPlan.mayContinue(target: 42, frontmost: 42, escape: true, modifiers: false), "Escape")
 check(!TypingPlan.mayContinue(target: 42, frontmost: 42, escape: false, modifiers: true), "modifier")
 print("Passed: Unicode/event payloads, line endings, target and cancellation guards.")
+
+var permission = PermissionFlow()
+for _ in 0..<10 {
+    check(!permission.shouldRequest(granted: false, explicitlyRequested: false), "denied start never prompts")
+}
+check(!permission.didRequest, "checks do not consume explicit request")
+check(permission.shouldRequest(granted: false, explicitlyRequested: true), "explicit first request")
+check(!permission.shouldRequest(granted: false, explicitlyRequested: true), "no repeated denied prompts")
+check(!permission.shouldRequest(granted: true, explicitlyRequested: true), "granted access never prompts")
+check(!permission.shouldRequest(granted: false, explicitlyRequested: true), "revocation does not start prompt loop")
+var alreadyGranted = PermissionFlow()
+check(!alreadyGranted.shouldRequest(granted: true, explicitlyRequested: true), "existing grant never requests")
+print("Passed: permission denial, explicit request, grant and revocation flow.")

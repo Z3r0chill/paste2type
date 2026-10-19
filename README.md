@@ -8,8 +8,8 @@ and sends keyboard events at roughly 50 characters per second.
 
 1. Open `build/Paste2Type.app`.
 2. Click **Enable Accessibility…** and allow Paste2Type in **System Settings →
-   Privacy & Security → Accessibility**. Reopen Paste2Type if macOS still reports
-   permission missing.
+   Privacy & Security → Accessibility**. The button shows **Accessibility Enabled**
+   when typing access is available. Start Typing never opens permission prompts.
 3. Click the destination field in your browser, leaving the cursor where you
    want the text inserted.
 4. Switch back to Paste2Type and paste your text into its box.
@@ -43,6 +43,30 @@ The build is for your Mac's architecture and uses an ad-hoc signature for local
 use. This is not a notarized distribution build. Keep the app at a stable path;
 after rebuilding or moving it, macOS may require removing and re-adding its
 Accessibility entry.
+
+### If Accessibility keeps asking
+
+An ad-hoc build has no stable signing certificate. After changing the executable,
+macOS can retain an enabled entry for the old build while denying the new one.
+Simply flipping that old toggle may not repair it.
+
+1. Quit Paste2Type after saving any text you want to keep.
+2. In **Privacy & Security → Accessibility**, remove the old Paste2Type entry
+   with the minus button.
+3. Use the plus button to add the current `build/Paste2Type.app`, and enable it.
+4. Reopen that same app. Keep it at the same path.
+
+For development updates, sign with the same code-signing certificate each time:
+
+```sh
+CODE_SIGN_IDENTITY="Apple Development: Your Name (TEAMID)" ./scripts/build.sh
+```
+
+Use an identity already installed in your keychain (`security find-identity -v
+-p codesigning` lists them). Without one, the build remains ad-hoc and changed
+builds can require a new grant. The app does not reset system permissions or
+bypass macOS authorization. Only the explicit permission button can request
+access, and it requests at most once per app launch.
 
 Open `tests/paste-blocked.html` in your browser to check behavior with a field
 that explicitly rejects paste. Confirm normal paste is blocked, then send the

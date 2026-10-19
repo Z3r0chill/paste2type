@@ -8,6 +8,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSTextViewDelegate {
     private let status = NSTextField(wrappingLabelWithString: "Paste your text above, then click Start Typing.")
     private let startButton = NSButton(title: "Start Typing", target: nil, action: nil)
     private let stopButton = NSButton(title: "Stop", target: nil, action: nil)
+    private let permissionButton = NSButton(title: "Enable Accessibility…", target: nil, action: nil)
+    private var permissionFlow = PermissionFlow()
+    private var lastPermissionState: Bool?
     private var destination: NSRunningApplication?
     private var activeTarget: NSRunningApplication?
     private var observer: NSObjectProtocol?
@@ -36,7 +39,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSTextViewDelegate {
         buildMenu()
         buildWindow()
         updateTarget()
+        refreshPermission()
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        guard window != nil else { return }
+        refreshPermission()
+    }
+
+    private func refreshPermission() {
+        let granted = CGPreflightPostEventAccess()
+        permissionButton.title = granted ? "Accessibility Enabled" : "Enable Accessibility…"
+        permissionButton.isEnabled = !granted
+        if granted, lastPermissionState == false, timer == nil {
+            status.stringValue = "Accessibility is enabled. Select your destination field, then return here."
+        }
+        lastPermissionState = granted
     }
 
     private func remember(_ app: NSRunningApplication?) {
@@ -110,9 +129,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSTextViewDelegate {
         stopButton.action = #selector(stopTyping)
         stopButton.bezelStyle = .rounded
         stopButton.isEnabled = false
-        let permission = NSButton(title: "Enable Accessibility…", target: self, action: #selector(enableAccessibility))
-        permission.bezelStyle = .rounded
-        let buttons = NSStackView(views: [startButton, stopButton, permission])
+        permissionButton.target = self
+        permissionButton.action = #selector(enableAccessibility)
+        permissionButton.bezelStyle = .rounded
+        let buttons = NSStackView(views: [startButton, stopButton, permissionButton])
         buttons.spacing = 10
         status.textColor = .secondaryLabelColor
         status.font = .systemFont(ofSize: 12)
@@ -156,18 +176,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSTextViewDelegate {
     }
 
     @objc private func enableAccessibility() {
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        if AXIsProcessTrustedWithOptions(options) {
-            status.stringValue = "Accessibility is enabled. Select your destination field, then return here."
-        } else {
-            status.stringValue = "Enable Paste2Type in System Settings → Privacy & Security → Accessibility. Reopen the app if needed."
-            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+        let granted = CGPreflightPostEventAccess()
+        if permissionFlow.shouldRequest(granted: granted, explicitlyRequested: true) {
+            _ = CGRequestPostEventAccess()
         }
+        refreshPermission()
+        guard !CGPreflightPostEventAccess() else { return }
+        status.stringValue = "Enable this build in Accessibility. If already enabled, remove the old Paste2Type entry, add this app again, then reopen it."
+        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
     }
 
     @objc private func startTyping() {
         guard timer == nil, !editor.string.isEmpty else { return }
-        guard AXIsProcessTrusted() else { enableAccessibility(); return }
+        // Start never requests permission or opens System Settings. Check the
+        // event-posting permission needed by CGEvent.post, not AX inspection.
+        guard CGPreflightPostEventAccess() else {
+            refreshPermission()
+            status.stringValue = "Typing access is unavailable. Click Enable Accessibility. If its toggle is already on, remove the old entry and add this build again."
+            return
+        }
         guard let target = destination, !target.isTerminated else {
             status.stringValue = "Click a field in another app, then come back here to start."
             return
@@ -210,7 +237,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSTextViewDelegate {
             }
             return
         }
-        guard AXIsProcessTrusted() else { finish("Stopped: Accessibility permission is no longer available."); return }
+        guard CGPreflightPostEventAccess() else { finish("Stopped: typing permission is no longer available."); return }
         guard TypingPlan.mayContinue(target: target.processIdentifier,
                                      frontmost: NSWorkspace.shared.frontmostApplication?.processIdentifier,
                                      escape: escape, modifiers: modifiers), !target.isTerminated else {
